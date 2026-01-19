@@ -1,0 +1,6 @@
+# Optional: openWakeWord wakeword engine
+# Only needed if you want low-latency wakeword detection.
+# MS4 works without this (STT-based wake is default).
+
+openwakeword>=0.4.0
+onnxruntime>=1.10.0

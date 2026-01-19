@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "offlinejoe"
+version = "0.4.0"
+description = "Offline Joe - Milestone 4 (Demo-ready conversational Joe)"
+requires-python = ">=3.10"
+dependencies = [
+  "fastapi>=0.110",
+  "uvicorn>=0.27",
+  "pydantic>=2.6",
+  "typer>=0.12",
+  "psutil>=5.9",
+  "PyYAML>=6.0",
+  "requests>=2.31",
+]
+
+[project.scripts]
+joe = "joe.main_cli:app"
+
+[tool.uvicorn]
+factory = false
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["joe*"]
