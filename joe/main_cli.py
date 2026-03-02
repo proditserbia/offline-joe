@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import warnings
 from typing import Optional
 
 import typer
@@ -106,6 +107,16 @@ def ask(text: str):
 @app.command("run-voice")
 def run_voice():
     """Run the MS4 demo voice loop (wake → converse)."""
+    # Keep demo console output clean on RPi (CPU-only expected).
+    warnings.filterwarnings(
+        "ignore",
+        message="Specified provider 'CUDAExecutionProvider' is not in available provider names.*",
+    )
+    warnings.filterwarnings(
+        "ignore",
+        message=".*GPU device discovery failed.*",
+    )
+
     settings, _memory, _state, _registry, _router = _build_runtime()
     loop = VoiceLoop(settings)
     st = loop.run_forever()
