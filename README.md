@@ -133,6 +133,8 @@ cd offline-joe
 python3 -m venv venv
 source venv/bin/activate
 pip install -e .
+curl -fsSL https://ollama.com/install.sh | sh
+ollama pull qwen2.5:3b
 ```
 
 ### 2. Install MS4 voice dependencies
@@ -148,6 +150,7 @@ pip install -r requirements_m4.txt
 
 ```bash
 mkdir -p /mnt/ssd/models
+sudo chown -R pi:pi /mnt/ssd
 cd /mnt/ssd/models
 wget https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip
 unzip vosk-model-small-en-us-0.15.zip
