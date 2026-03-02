@@ -8,6 +8,9 @@ User=pi
 WorkingDirectory=/opt/offline-joe
 Environment=JOE_HARDWARE_YAML=/opt/offline-joe/config/hardware.yaml
 Environment=JOE_DATA_DIR=/mnt/ssd/offline-joe
+Environment=JOE_LOG_DIR=/mnt/ssd/offline-joe/logs
+Environment=JOE_LOG_LEVEL=DEBUG
+Environment=JOE_DB_PATH=/mnt/ssd/offline-joe/memory.sqlite
 
 Environment="PATH=/opt/offline-joe/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 Environment="VIRTUAL_ENV=/opt/offline-joe/venv"
