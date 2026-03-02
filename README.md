@@ -130,6 +130,8 @@ arecord (ALSA) → AlsaPCMStream
 ```bash
 git clone https://github.com/proditserbia/offline-joe
 cd offline-joe
+python3 -m venv venv
+source venv/bin/activate
 pip install -e .
 ```
 
