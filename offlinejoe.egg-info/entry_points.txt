@@ -1,2 +1,0 @@
-[console_scripts]
-joe = joe.main_cli:app
