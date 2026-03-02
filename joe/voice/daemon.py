@@ -5,20 +5,19 @@ import random
 import time
 from dataclasses import dataclass
 
+from ..camera.v4l2 import capture_frame, device_exists
 from ..config import Settings
+from ..llm.provider import OpenAICompatibleLLM
 from ..memory.store import MemoryStore
 from ..personality.scaffold import Personality
 from ..router import Router
 from ..skills.base import SkillContext
 from ..skills.registry import SkillRegistry
 from ..state import JoeState
-from ..llm.provider import OpenAICompatibleLLM
-from ..camera.v4l2 import capture_frame, device_exists
-
 from .alsa_stream import AlsaPCMStream, AlsaStreamConfig
-from .vad_recorder import VadRecorder, VadRecorderConfig
 from .stt_vosk import VoskSTT
 from .tts import Speaker
+from .vad_recorder import VadRecorder, VadRecorderConfig
 from .wakeword import WakewordDetector
 
 log = logging.getLogger(__name__)
@@ -66,7 +65,6 @@ class VoiceLoop:
             )
         )
 
-        # Wakeword model (optional)
         model_path = hw.wakeword.model_path
         if not model_path:
             bundled = (settings.hardware_path.parent.parent / "wakeword" / "hey_joe.tflite")
@@ -88,7 +86,6 @@ class VoiceLoop:
             )
         )
 
-        # Constrained grammar (optional) + ensure wake phrase included.
         grammar = hw.stt.grammar if hw.stt.mode in ("command", "auto") else None
         if grammar is not None:
             wake_phrase = (hw.conversation.wake_phrase or "Hey Joe").strip().lower()
@@ -118,6 +115,13 @@ class VoiceLoop:
 
         self.active_until: float = 0.0
 
+        # observability controls
+        self._last_heartbeat_ts: float = 0.0
+        self._heartbeat_every_s: float = 10.0
+        self._last_wake_debug_ts: float = 0.0
+        self._wake_debug_every_s: float = 2.0
+        self._camera_warned_once: bool = False
+
     def _ctx(self) -> SkillContext:
         return SkillContext(source="voice", state=self.state, memory=self.memory)
 
@@ -132,6 +136,7 @@ class VoiceLoop:
         conv = self.settings.hardware.conversation
         dur = random.randint(int(conv.active_listen_min_s), int(conv.active_listen_max_s))
         self.active_until = time.time() + dur
+        log.info("voice.conversation.activated duration_s=%d active_until=%d", dur, int(self.active_until))
 
     def _in_conversation_mode(self) -> bool:
         return time.time() < self.active_until
@@ -141,6 +146,7 @@ class VoiceLoop:
         t = (text or "").strip().lower()
         for k, v in aliases.items():
             if t == (k or "").strip().lower():
+                log.debug("voice.stt.alias matched from=%r to=%r", k, v)
                 return v
         return text
 
@@ -167,7 +173,6 @@ class VoiceLoop:
 
     def run_forever(self) -> VoiceLoopStatus:
         hw = self.settings.hardware
-
         import sys
 
         if not self.vad.ready():
@@ -187,26 +192,52 @@ class VoiceLoop:
 
         self.stream.start()
         log.info(
-            "VoiceLoop started — wake_phrase=%r ack=%r wakeword_model=%s "
-            "stt_mode=%s ssd=%s",
+            "VoiceLoop started — wake_phrase=%r ack=%r wakeword_model=%s stt_mode=%s ssd=%s",
             hw.conversation.wake_phrase,
             hw.conversation.wake_ack,
             "openWakeWord" if self.wake.ready() else "STT-fallback",
             hw.stt.mode,
             hw.storage.ssd_mount,
         )
+
         try:
             frame_bytes = int(hw.audio.input_rate * (hw.wakeword.frame_ms / 1000.0) * 2)  # int16
 
             while True:
+                now = time.monotonic()
+                if now - self._last_heartbeat_ts >= self._heartbeat_every_s:
+                    rem = max(0, int(self.active_until - time.time()))
+                    log.debug(
+                        "voice.loop.heartbeat conversation_active=%s remaining_s=%d wake_ready=%s",
+                        self._in_conversation_mode(),
+                        rem,
+                        self.wake.ready(),
+                    )
+                    self._last_heartbeat_ts = now
+
                 if not self._in_conversation_mode():
                     # Preferred: openWakeWord (low-latency)
                     if self.wake.ready():
                         pcm = self.stream.read(frame_bytes)
                         if not pcm:
                             continue
+
                         r = self.wake.process(pcm, sample_rate=hw.audio.input_rate)
+
+                        if now - self._last_wake_debug_ts >= self._wake_debug_every_s:
+                            if r.error:
+                                log.debug("voice.wake.check error=%r", r.error)
+                            else:
+                                log.debug(
+                                    "voice.wake.check score=%.4f threshold=%.4f triggered=%s",
+                                    r.score,
+                                    hw.wakeword.threshold,
+                                    r.triggered,
+                                )
+                            self._last_wake_debug_ts = now
+
                         if r.triggered:
+                            log.info("voice.wake.triggered phrase=%r score=%.4f", hw.conversation.wake_phrase, r.score)
                             self.speaker.speak(hw.conversation.wake_ack)
                             self._set_active_listen_window()
                         continue
@@ -217,10 +248,15 @@ class VoiceLoop:
                         continue
                     stt_res = self.stt.transcribe_pcm_s16le(utter_pcm)
                     if not stt_res.ok:
+                        log.warning("voice.wake.stt.error %s", stt_res.error or "unknown")
                         continue
+
                     text = (stt_res.text or "").strip().lower()
                     wake_phrase = (hw.conversation.wake_phrase or "hey joe").strip().lower()
+                    log.debug("voice.wake.stt text=%r expected=%r", text, wake_phrase)
+
                     if wake_phrase and wake_phrase in text:
+                        log.info("voice.wake.triggered fallback=true phrase=%r", wake_phrase)
                         self.speaker.speak(hw.conversation.wake_ack)
                         self._set_active_listen_window()
                     continue
@@ -232,15 +268,20 @@ class VoiceLoop:
 
                 stt_res = self.stt.transcribe_pcm_s16le(utter_pcm)
                 if not stt_res.ok:
+                    log.warning("voice.stt.failed error=%s", stt_res.error or "unknown")
                     self.speaker.speak(self.personality.wrap("Sorry, I didn't catch that."))
                     continue
 
                 text = self._apply_alias(stt_res.text).strip()
                 if not text:
+                    log.debug("voice.stt.final empty_or_silence=true")
                     continue
+
+                log.info("voice.user.text=%r", text)
 
                 if text.strip().lower() in ("stop", "cancel"):
                     self.active_until = 0
+                    log.info("voice.conversation.deactivated reason=%r", text.strip().lower())
                     self.speaker.speak(self.personality.wrap("Okay."))
                     continue
 
@@ -249,14 +290,20 @@ class VoiceLoop:
                 # 1) Local skills
                 skill_res = self.router.match_skill(text, ctx)
                 if skill_res is not None and skill_res.ok:
-                    self.speaker.speak(self.personality.wrap(skill_res.text))
+                    out = self.personality.wrap(skill_res.text)
+                    log.info("voice.route local_skill_match=true llm_fallback=false")
+                    log.info("voice.assistant.text=%r", (out[:180] + "…") if len(out) > 180 else out)
+                    self.speaker.speak(out)
                     continue
 
                 # 2) LLM fallback
+                log.info("voice.route local_skill_match=false llm_fallback=true")
                 llm_res = self.llm.generate(user_text=text, system_prompt=self._system_prompt())
                 if llm_res.ok and llm_res.text:
                     self.memory.add_event("voice", text, intent="llm:fallback", success=True, meta={})
-                    self.speaker.speak(self.personality.wrap(llm_res.text))
+                    out = self.personality.wrap(llm_res.text)
+                    log.info("voice.assistant.text=%r", (out[:180] + "…") if len(out) > 180 else out)
+                    self.speaker.speak(out)
                 else:
                     self.memory.add_event(
                         "voice",
@@ -265,7 +312,10 @@ class VoiceLoop:
                         success=False,
                         meta={"error": llm_res.error or ""},
                     )
-                    self.speaker.speak(self.personality.wrap("I can help with time, status, or volume."))
+                    log.warning("voice.llm.fallback.failed error=%s", llm_res.error or "unknown")
+                    out = self.personality.wrap("I can help with time, status, or volume.")
+                    log.info("voice.assistant.text=%r", out)
+                    self.speaker.speak(out)
 
         except KeyboardInterrupt:
             return VoiceLoopStatus(True, "Stopped.")
