@@ -1,34 +1,45 @@
+# ===========================================================================
+# Offline Joe — Hardware Configuration (Milestone 4)
+# ===========================================================================
+# Edit this file for your specific Raspberry Pi setup.
+# A copy can be placed in ~/.offlinejoe/hardware.yaml or referenced via
+# the JOE_HARDWARE_YAML environment variable.
+
 vosk:
-  # Default: expect the model under the project folder (works well for demo setups)
+  # Path to a Vosk speech model directory.
+  # Download from https://alphacephei.com/vosk/models
+  # Recommended for Pi: vosk-model-small-en-us-0.15
   model_path: models/vosk-model-small-en-us-0.15
 
 piper:
-  # Optional. If not set, TTS will fall back to a basic system voice.
+  # Path to a Piper TTS .onnx model file (optional).
+  # If not set, Joe falls back to espeak-ng.
   model_path: null
 
 audio:
-  # CAPTURE (ReSpeaker)
-  input_device: "plughw:CARD=Headset,DEV=0" # "plughw:CARD=ArrayUAC10,DEV=0"
+  # CAPTURE device (microphone / ReSpeaker)
+  input_device: "plughw:CARD=Headset,DEV=0"
   input_rate: 16000
   input_channels: 1
 
-  # PLAYBACK (USB Audio)
-  output_device: "plughw:CARD=Headset,DEV=0" # "plughw:CARD=Audio,DEV=0"
+  # PLAYBACK device (USB audio / speaker)
+  output_device: "plughw:CARD=Headset,DEV=0"
   record_seconds: 3
 
 wakeword:
-  model_path: null
-  threshold: 0.4                 # openWakeWord score za aktivaciju
-  frame_ms: 80                   # dužina frejma za wakeword (80ms je default)
-  min_activation_frames: 3       # koliko uzastopnih frejmova iznad thresholda
+  model_path: null   # null = use bundled wakeword/hey_joe.tflite
+  threshold: 0.4
+  frame_ms: 80
+  min_activation_frames: 3
   min_rms: 1000
+
 vad:
-  aggressiveness: 2              # 0–3 (3 = najagresivniji)
-  silence_ms: 800                # koliko tišine zaredom znači “kraj rečenice”
-  max_record_ms: 8000            # hard limit za dužinu snimanja jedne rečenice
+  aggressiveness: 2        # 0-3  (3 = most aggressive)
+  silence_ms: 800          # ms of silence that ends an utterance
+  max_record_ms: 8000      # hard upper limit per utterance
 
 stt:
-  mode: auto            # free | command | auto
+  mode: auto               # free | command | auto
   grammar:
     - "status"
     - "system status"
@@ -59,28 +70,43 @@ stt:
     "sleep": "go to sleep"
 
 conversation:
-  # After wake, Joe stays in conversation mode for ~2-5 minutes
+  # After wake, Joe stays in active-listening mode for this many seconds.
   active_listen_min_s: 120
   active_listen_max_s: 300
   wake_phrase: "Hey Joe"
   wake_ack: "Hi."
 
 personality:
-  # 0-3 each, deterministic
+  # 0-3 each, deterministic style modifiers.
   warmth: 2
   humor: 1
   directness: 2
 
 llm:
-  # Lightweight fallback used only when no local skill matches (and in conversation mode)
-  # Default assumes a local OpenAI-compatible endpoint (e.g., Ollama's /v1)
+  # Optional lightweight LLM fallback (OpenAI-compatible endpoint).
+  # Disabled by default; enable once a local model server is running.
   enabled: false
   base_url: "http://localhost:11434/v1"
   api_key: null
   model: "llama3"
   timeout_s: 20
 
+# ---------------------------------------------------------------------------
+# Camera
+# ---------------------------------------------------------------------------
+# MS4 hardware status: camera ribbon has been reseated multiple times;
+# no /dev/video* device is present; replacement ribbon ordered.
+# Set enabled: true once hardware is confirmed working.
 camera:
-  enabled: true
+  enabled: false           # No active camera device detected on MS4 hardware
   device: "/dev/video0"
   backend: "v4l2"
+
+# ---------------------------------------------------------------------------
+# Storage
+# ---------------------------------------------------------------------------
+# Root filesystem: /dev/mmcblk0p2 (SD card)
+# NVMe SSD: /mnt/ssd  -- clean and available for Joe data (models, frames, DB)
+storage:
+  ssd_mount: "/mnt/ssd"
+  root_device: "/dev/mmcblk0p2"

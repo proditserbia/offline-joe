@@ -9,9 +9,16 @@ class SkillRegistry:
     skills: Dict[str, Skill]
 
     @staticmethod
-    def build_default() -> "SkillRegistry":
+    def build_default(ssd_mount: str = "/mnt/ssd") -> "SkillRegistry":
         skills: Dict[str, Skill] = {}
-        for s in [TimeDateSkill(), SystemStatusSkill(), MemorySkill(), FactsSkill(), VoiceSkill(), ModeSkill()]:
+        for s in [
+            TimeDateSkill(),
+            SystemStatusSkill(ssd_mount=ssd_mount),
+            MemorySkill(),
+            FactsSkill(),
+            VoiceSkill(),
+            ModeSkill(),
+        ]:
             skills[s.name] = s
         return SkillRegistry(skills)
 

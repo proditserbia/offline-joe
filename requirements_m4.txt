@@ -1,0 +1,35 @@
+# ===========================================================================
+# Offline Joe — Unified Requirements for Milestone 4 (MS4)
+# ===========================================================================
+# Install everything needed for a full MS4 demo with:
+#
+#   pip install -r requirements_m4.txt
+#
+# Then verify with:
+#   joe status
+#   joe run-voice
+#
+# Python >= 3.10 required.  Tested on Raspberry Pi OS (64-bit) + Pi 5.
+# ===========================================================================
+
+# --- Core package (installs from pyproject.toml) ---------------------------
+-e .
+
+# --- Voice stack -----------------------------------------------------------
+# Offline speech-to-text (Vosk / Kaldi)
+vosk>=0.3.45
+
+# Voice activity detection
+webrtcvad>=2.0.10
+
+# Required on some minimal Python 3.13 virtualenvs
+setuptools>=65
+
+# numpy is used by vosk / webrtcvad under the hood
+numpy>=1.24
+
+# --- Wake-word engine (optional but recommended) ---------------------------
+# openWakeWord provides low-latency "Hey Joe" detection.
+# MS4 falls back to STT-based wake detection when this is absent.
+openwakeword>=0.4.0
+onnxruntime>=1.10.0

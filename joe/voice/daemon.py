@@ -45,7 +45,9 @@ class VoiceLoop:
         self.memory = MemoryStore(str(settings.db_path))
         self.memory.init()
 
-        self.registry = SkillRegistry.build_default()
+        self.registry = SkillRegistry.build_default(
+            ssd_mount=hw.storage.ssd_mount,
+        )
         self.router = Router(self.registry)
 
         self.personality = Personality(hw.personality)
@@ -145,13 +147,23 @@ class VoiceLoop:
     def init_camera_hooks(self) -> None:
         cam = self.settings.hardware.camera
         if not cam.enabled:
+            log.info("Camera disabled in hardware.yaml — skipping init capture")
             return
         if not device_exists(cam.device):
+            log.warning(
+                "Camera device %s not present — no frame captured. "
+                "MS4: running in no-camera mode until hardware is confirmed.",
+                cam.device,
+            )
             return
         try:
-            capture_frame(cam.device, self.settings.data_dir / "camera")
-        except Exception:
-            pass
+            result = capture_frame(cam.device, self.settings.data_dir / "camera")
+            if result.ok:
+                log.info("Camera init frame: %s", result.frame_path)
+            else:
+                log.warning("Camera init capture failed: %s", result.error)
+        except Exception as exc:
+            log.warning("Camera init unexpected error: %s", exc)
 
     def run_forever(self) -> VoiceLoopStatus:
         hw = self.settings.hardware
@@ -174,7 +186,15 @@ class VoiceLoop:
         self.init_camera_hooks()
 
         self.stream.start()
-        log.info("Voice loop started. wakeword_ready=%s stt_mode=%s", self.wake.ready(), hw.stt.mode)
+        log.info(
+            "VoiceLoop started — wake_phrase=%r ack=%r wakeword_model=%s "
+            "stt_mode=%s ssd=%s",
+            hw.conversation.wake_phrase,
+            hw.conversation.wake_ack,
+            "openWakeWord" if self.wake.ready() else "STT-fallback",
+            hw.stt.mode,
+            hw.storage.ssd_mount,
+        )
         try:
             frame_bytes = int(hw.audio.input_rate * (hw.wakeword.frame_ms / 1000.0) * 2)  # int16
 

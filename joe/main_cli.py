@@ -30,7 +30,9 @@ def _build_runtime():
     memory.init()
 
     state = JoeState()
-    registry = SkillRegistry.build_default()
+    registry = SkillRegistry.build_default(
+        ssd_mount=settings.hardware.storage.ssd_mount,
+    )
     router = Router(registry)
 
     return settings, memory, state, registry, router
@@ -84,7 +86,12 @@ def status():
 
     cam = settings.hardware.camera
     if cam.enabled:
-        typer.echo(f"Camera: {cam.device} ({'present' if device_exists(cam.device) else 'missing'})")
+        typer.echo(f"Camera: {cam.device} ({'present' if device_exists(cam.device) else 'absent — no-camera mode'})")
+    else:
+        typer.echo("Camera: disabled")
+
+    stor = settings.hardware.storage
+    typer.echo(f"Storage: root={stor.root_device}  SSD={stor.ssd_mount}")
 
 
 @app.command()
@@ -109,19 +116,20 @@ def run_voice():
 
 @app.command("camera-test")
 def camera_test():
-    """Capture a single frame from the configured camera."""
+    """Capture a single frame from the configured camera (or report gracefully if absent)."""
     settings, _memory, _state, _registry, _router = _build_runtime()
 
     cam = settings.hardware.camera
     if not cam.enabled:
         typer.echo("Camera is disabled in hardware.yaml")
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=0)
 
     r = capture_frame(cam.device, settings.data_dir / "camera")
     if r.ok:
         typer.echo(f"OK: {r.frame_path}")
     else:
-        typer.echo(f"FAIL: {r.error}")
+        typer.echo(f"Camera not available: {r.error}")
+        typer.echo("MS4 note: camera hardware may be absent — ribbon replacement ordered.")
         raise typer.Exit(code=1)
 
 
