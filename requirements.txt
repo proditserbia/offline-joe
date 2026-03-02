@@ -1,6 +1,0 @@
-# Base install for Offline Joe (MS4)
-# Preferred install:
-#   pip install -e .
-#
-# This file exists for convenience and to satisfy packaging checks.
--e .
