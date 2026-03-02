@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+import logging
+import os
 from array import array
 from dataclasses import dataclass
+
+log = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -19,7 +23,6 @@ def rms_int16(pcm: bytes) -> float:
     a.frombytes(pcm[: len(pcm) - (len(pcm) % 2)])
     if not a:
         return 0.0
-    # Use Python ints; still faster than per-sample from_bytes loop.
     acc = 0
     for v in a:
         acc += v * v
@@ -37,15 +40,29 @@ class WakewordDetector:
         self._streak = 0
         self._model = None
 
+        # Prefer CPU-only inference in RPi/MS4 environments to avoid noisy provider warnings.
+        os.environ.setdefault("OMP_NUM_THREADS", "1")
+        os.environ.setdefault("ORT_DISABLE_ARENA", "1")
+
         try:
             from openwakeword.model import Model  # type: ignore
 
             if model_path:
+                # Keep constructor conservative for compatibility across openwakeword versions.
                 self._model = Model(wakeword_models=[model_path])
             else:
                 self._model = Model()
-        except Exception:
+
+            log.debug(
+                "WakewordDetector initialized model_path=%s threshold=%.3f min_frames=%d min_rms=%d",
+                model_path,
+                self.threshold,
+                self.min_activation_frames,
+                self.min_rms,
+            )
+        except Exception as exc:
             self._model = None
+            log.warning("WakewordDetector unavailable: %s", exc)
 
     def ready(self) -> bool:
         return self._model is not None
@@ -54,7 +71,6 @@ class WakewordDetector:
         if not self._model:
             return WakewordResult(False, error="openwakeword not available")
 
-        # RMS gate
         if rms_int16(pcm) < self.min_rms:
             self._streak = 0
             return WakewordResult(False, score=0.0)
@@ -66,7 +82,6 @@ class WakewordDetector:
         try:
             scores = self._model.predict(pcm)
             score = float(max(scores.values())) if scores else 0.0
-
             self._streak = self._streak + 1 if score >= self.threshold else 0
 
             if self._streak >= self.min_activation_frames:
