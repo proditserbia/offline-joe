@@ -5,10 +5,14 @@ After=network.target sound.target
 [Service]
 Type=simple
 User=pi
-WorkingDirectory=/opt/offlinejoe
-Environment=JOE_HARDWARE_YAML=/opt/offlinejoe/config/hardware.yaml
-Environment=JOE_DATA_DIR=/home/pi/.offlinejoe
-ExecStart=/usr/bin/env bash -lc 'joe run-voice'
+WorkingDirectory=/opt/offline-joe
+Environment=JOE_HARDWARE_YAML=/opt/offline-joe/config/hardware.yaml
+Environment=JOE_DATA_DIR=/mnt/ssd/offline-joe
+
+Environment="PATH=/opt/offline-joe/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+Environment="VIRTUAL_ENV=/opt/offline-joe/venv"
+
+ExecStart=/opt/offline-joe/venv/bin/joe run-voice
 Restart=always
 RestartSec=2
 
