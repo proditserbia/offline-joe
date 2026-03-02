@@ -39,11 +39,16 @@ class WakewordDetector:
         self.min_rms = int(min_rms)
         self._streak = 0
         self._model = None
-
+        
         # Prefer CPU-only inference in RPi/MS4 environments to avoid noisy provider warnings.
         os.environ.setdefault("OMP_NUM_THREADS", "1")
         os.environ.setdefault("ORT_DISABLE_ARENA", "1")
 
+        if not model_path:
+            self._model = None
+            log.info("WakewordDetector disabled (no model_path configured); using STT wake fallback.")
+            return
+        
         try:
             from openwakeword.model import Model  # type: ignore
 
