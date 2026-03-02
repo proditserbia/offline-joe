@@ -423,11 +423,12 @@ Menu options:
 ## Deployment (systemd)
 
 ```bash
-sudo cp deploy/joe.service /etc/systemd/system/
+sudo cp deploy/joe.service /etc/systemd/system/joe.service
 sudo systemctl daemon-reload
-sudo systemctl enable joe
-sudo systemctl start joe
-sudo journalctl -u joe -f
+sudo systemctl enable joe.service
+sudo systemctl start joe.service
+sudo systemctl status joe.service --no-pager
+journalctl -u joe.service -f
 ```
 
 The service file runs `joe run-voice` as the `pi` user.
