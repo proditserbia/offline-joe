@@ -1,8 +1,12 @@
 from __future__ import annotations
+import logging
 import platform, os, time, socket
 import psutil
 from .base import SkillContext, SkillResult
 from ..utils.shell import has_cmd, run
+
+log = logging.getLogger(__name__)
+
 
 def _cpu_temp() -> float | None:
     # Raspberry Pi: vcgencmd measure_temp
@@ -23,6 +27,16 @@ def _cpu_temp() -> float | None:
         pass
     return None
 
+def _ssd_usage(mount: str = "/mnt/ssd") -> psutil._common.sdiskusage | None:
+    """Return disk usage for the NVMe SSD mount, or None if not mounted."""
+    try:
+        if os.path.ismount(mount):
+            return psutil.disk_usage(mount)
+    except Exception as exc:
+        log.debug("SSD disk usage unavailable at %s: %s", mount, exc)
+    return None
+
+
 def _ip() -> str | None:
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -32,6 +46,7 @@ def _ip() -> str | None:
         return ip
     except Exception:
         return None
+
 
 def _fmt_uptime(uptime_s: int) -> str:
     h = uptime_s // 3600
@@ -78,14 +93,18 @@ class SystemStatusSkill:
     name = "system_status"
     description = "CPU/RAM/Disk/Uptime/Temp/IP status."
 
+    def __init__(self, ssd_mount: str = "/mnt/ssd") -> None:
+        self.ssd_mount = ssd_mount
+
     def run(self, text: str, ctx: SkillContext) -> SkillResult:
         vm = psutil.virtual_memory()
         du = psutil.disk_usage("/")
-        load1, load5, load15 = os.getloadavg() if hasattr(os, "getloadavg") else (0,0,0)
+        load1, load5, load15 = os.getloadavg() if hasattr(os, "getloadavg") else (0, 0, 0)
         uptime_s = int(time.time() - psutil.boot_time())
         temp = _cpu_temp()
         ip = _ip()
         host = platform.node()
+        ssd = _ssd_usage(self.ssd_mount)
 
         uptime_spoken = _fmt_uptime(uptime_s)
 
@@ -96,12 +115,26 @@ class SystemStatusSkill:
             f"Uptime is {uptime_spoken}."
         )
 
+        if ssd is not None:
+            msg += f" S S D usage is {ssd.percent:.0f} percent."
         if temp is not None:
             msg += f" CPU temperature is {temp:.1f} degrees."
         if ip:
             msg += f" IP address is {_spoken_ip(ip)}."
 
-        return SkillResult(True, msg, data={
-            "host": host, "load1": load1, "ram_percent": vm.percent, "disk_percent": du.percent,
-            "uptime_s": uptime_s, "temp_c": temp, "ip": ip
-        })
+        data: dict = {
+            "host": host,
+            "load1": load1,
+            "ram_percent": vm.percent,
+            "disk_percent": du.percent,
+            "uptime_s": uptime_s,
+            "temp_c": temp,
+            "ip": ip,
+        }
+        if ssd is not None:
+            data["ssd_mount"] = self.ssd_mount
+            data["ssd_percent"] = ssd.percent
+            data["ssd_free_gb"] = round(ssd.free / (1024 ** 3), 1)
+
+        log.debug("SystemStatus: %s", data)
+        return SkillResult(True, msg, data=data)

@@ -34,7 +34,7 @@ def create_app() -> FastAPI:
         memory.init()
 
         state = JoeState()
-        registry = SkillRegistry.build_default()
+        registry = SkillRegistry.build_default(ssd_mount=settings.hardware.storage.ssd_mount)
         router = Router(registry)
 
         app.state.settings = settings

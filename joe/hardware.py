@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -88,6 +88,18 @@ class CameraConfig:
 
 
 @dataclass(frozen=True)
+class StorageConfig:
+    """Describes secondary/auxiliary storage mounts.
+
+    On MS4 hardware the NVMe SSD is mounted at ``/mnt/ssd``.  Joe uses this
+    path for large data (models, frames, recordings).  The root filesystem
+    lives on the SD card (``/dev/mmcblk0p2``).
+    """
+    ssd_mount: str = "/mnt/ssd"
+    root_device: str = "/dev/mmcblk0p2"
+
+
+@dataclass(frozen=True)
 class HardwareConfig:
     audio: AudioConfig
     wakeword: WakewordConfig
@@ -95,10 +107,11 @@ class HardwareConfig:
     stt: SttConfig
     vosk: VoskConfig | None = None
     piper: PiperConfig | None = None
-    llm: LlmConfig = LlmConfig()
-    personality: PersonalityConfig = PersonalityConfig()
-    conversation: ConversationConfig = ConversationConfig()
-    camera: CameraConfig = CameraConfig()
+    llm: LlmConfig = field(default_factory=LlmConfig)
+    personality: PersonalityConfig = field(default_factory=PersonalityConfig)
+    conversation: ConversationConfig = field(default_factory=ConversationConfig)
+    camera: CameraConfig = field(default_factory=CameraConfig)
+    storage: StorageConfig = field(default_factory=StorageConfig)
 
 
 def load_hardware_config(path: Path) -> HardwareConfig:
@@ -183,6 +196,12 @@ def load_hardware_config(path: Path) -> HardwareConfig:
         backend=str(cam_d.get("backend", "v4l2")).strip(),
     )
 
+    stor_d = data.get("storage") or {}
+    storage = StorageConfig(
+        ssd_mount=str(stor_d.get("ssd_mount", "/mnt/ssd")).strip(),
+        root_device=str(stor_d.get("root_device", "/dev/mmcblk0p2")).strip(),
+    )
+
     return HardwareConfig(
         audio=audio,
         wakeword=wakeword,
@@ -194,4 +213,5 @@ def load_hardware_config(path: Path) -> HardwareConfig:
         personality=personality,
         conversation=conversation,
         camera=camera,
+        storage=storage,
     )
