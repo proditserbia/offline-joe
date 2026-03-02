@@ -147,23 +147,26 @@ pip install -r requirements_m4.txt
 ### 3. Download a Vosk model
 
 ```bash
-mkdir -p models
-cd models
+mkdir -p /mnt/ssd/models
+cd /mnt/ssd/models
 wget https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip
 unzip vosk-model-small-en-us-0.15.zip
+rm vosk-model-small-en-us-0.15.zip
 cd ..
 ```
 
 The default `config/hardware.yaml` expects the model at
 `models/vosk-model-small-en-us-0.15` relative to the project root.
 
-### 4. (Optional) Download a Piper TTS model
+### 4. Download a Piper TTS model
 
 ```bash
-mkdir -p models/piper
-# Example: en_US-amy-medium
-wget -P models/piper \
-  https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/amy/medium/en_US-amy-medium.onnx
+mkdir -p /mnt/ssd/models/piper
+cd /mnt/ssd/models/piper
+# Example: en_US-joe-medium
+wget https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/joe/medium/en_US-joe-medium.onnx
+wget https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/joe/medium/en_US-joe-medium.onnx.json
+wget https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/joe/medium/MODEL_CARD
 ```
 
 Set `piper.model_path: models/piper/en_US-amy-medium.onnx` in `hardware.yaml`.
