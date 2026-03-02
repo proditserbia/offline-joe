@@ -65,11 +65,7 @@ class VoiceLoop:
             )
         )
 
-        model_path = hw.wakeword.model_path
-        if not model_path:
-            bundled = (settings.hardware_path.parent.parent / "wakeword" / "hey_joe.tflite")
-            if bundled.exists() and bundled.stat().st_size > 0:
-                model_path = str(bundled)
+        model_path = (hw.wakeword.model_path or "").strip() or None
         self.wake = WakewordDetector(
             model_path=model_path,
             threshold=hw.wakeword.threshold,
