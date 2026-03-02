@@ -23,10 +23,16 @@ vosk>=0.3.45
 webrtcvad>=2.0.10
 
 # Required on some minimal Python 3.13 virtualenvs
-setuptools>=65
+setuptools<80
 
 # numpy is used by vosk / webrtcvad under the hood
 numpy>=1.24
+
+# Piper TTS
+piper-tts
+
+# Path validator
+pathvalidate
 
 # --- Wake-word engine (optional but recommended) ---------------------------
 # openWakeWord provides low-latency "Hey Joe" detection.
